@@ -183,31 +183,36 @@ EFI_STATUS	EFIAPI	UefiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
 	EntryPointType					*entry_point;
 	EFI_GRAPHICS_OUTPUT_PROTOCOL	*gop;//pixel
 
-	status = GetMemoryMap(&memmap);//memmap
+	status = GetMemoryMap(&memmap);//MemoryMap
 	if(EFI_ERROR(status))
 	{
-		Print(L"Failed to get memory map : %r\n", status);
+		Print(L"Failed to get MemoryMap : %r\n", status);
 		Halt();
 	}
 	status = OpenRootDir(image_handle, &root_dir);
 	if(EFI_ERROR(status))
 	{
-		Print(L"Failed to open root directory : %r\n", status);
+		Print(L"Failed to open RootDir : %r\n", status);
 		Halt();
 	}
-	status = root_dir->Open(root_dir, &memmap_file, L"\\memmap", \
-	EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+	status = root_dir->Open(root_dir, &memmap_file, L"\\memmap", EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
 	if(EFI_ERROR(status))
 	{
-		Print(L"Failed to open memmap_file : %r\n", status);
-		Halt();
+		Print(L"Failed to open memmap : %r\n", status);
+		Print(L"Ignored\n");
 	}
 	else
 	{
 		status = SaveMemoryMap(&memmap, memmap_file);
 		if(EFI_ERROR(status))
 		{
-			Print(L"Failed to save memmap : %r\n", status);
+			Print(L"Failed to save MemoryMap : %r\n", status);
+			Halt();
+		}
+		status = memmap_file->Close(memmap_file);
+		if(EFI_ERROR(status))
+		{
+			Print(L"Failed to close MemoryMap : %r\n", status);
 			Halt();
 		}
 	}
@@ -215,20 +220,13 @@ EFI_STATUS	EFIAPI	UefiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
 	status = OpenGOP(image_handle, &gop);//pixel
 	if(EFI_ERROR(status))
 	{
-		Print(L"Failed to open GOP : %r\n", status);
+		Print(L"Failed to save OpenGOP : %r\n", status);
 		Halt();
 	}
-	Print(L"Resolution : %x%u, Pixel Format : %s, %u pixels/line", \
-	gop->Mode->Info->HorizontalResolution, \
-	gop->Mode->Info->VerticalResolution, \
-	GetPixelFormatUnicode(gop->Mode->Info->PixelFormat), \
-	gop->Mode->Info->PixelsPerScanLine);
-	Print(L"Frame Buffer : 0x%0lx - 0x%0lx, Size : %lu bytes\n", \
-	gop->Mode->FrameBufferBase, \
-	gop->Mode->FrameBufferBase + gop->Mode->FrameBufferSize, \
-	gop->Mode->FrameBufferSize);
+	Print(L"Resolution : %ux%u, Pixel Format : %s, %u Pixels/line\n", gop->Mode->Info->HorizontalResolution, gop->Mode->Info->VerticalResolution ,GetPixelFormatUnicode(gop->Mode->Info->PixelFormat), gop->Mode->Info->PixelsPerScanLine);
+	Print(L"Frame Buffer : 0x%0lx - 0x %0lx, Size : %lu bytes\n", gop->Mode->FrameBufferBase, gop->Mode->FrameBufferBase + gop->Mode->FrameBufferSize, gop->Mode->FrameBufferSize);
 
-	status = root_dir->Open(root_dir, &kernel_file, L"kernel.elf", EFI_FILE_MODE_READ, 0);
+	status = root_dir->Open(root_dir, &kernel_file, L"\\kernel.elf", EFI_FILE_MODE_READ, 0);//kernel_FileOpen
 	if(EFI_ERROR(status))
 	{
 		Print(L"Failed to open kernel.elf : %r\n", status);
@@ -237,7 +235,7 @@ EFI_STATUS	EFIAPI	UefiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
 	status = kernel_file->GetInfo(kernel_file, &gEfiFileInfoGuid, &file_info_size, file_info_buffer);
 	if(EFI_ERROR(status))
 	{
-		Print(L"Failed to get kernel_file info : %r\n", status);
+		Print(L"Failed to get info of kernel_file : %r\n", status);
 		Halt();
 	}
 	file_info = (EFI_FILE_INFO *)file_info_buffer;
@@ -249,32 +247,39 @@ EFI_STATUS	EFIAPI	UefiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
 		Print(L"Failed to allocate pages : %r\n", status);
 		Halt();
 	}
+	Print(L"<Kernel> base_addr:0x%0lx,  file_size:(%lu bytes)\n", kernel_base_addr, kernel_file_size);
 	status = kernel_file->Read(kernel_file, &kernel_file_size, (VOID *)kernel_base_addr);
 	if(EFI_ERROR(status))
 	{
-		Print(L"Failed to read kernel_file : %r\n", status);
+		Print(L"Kernel_file couldn't read kernel_file: %r\n", status);
 		Halt();
 	}
-	Print(L"kernel : 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size);
-	status = gBS->ExitBootServices(image_handle, memmap.map_key);
+	status = gBS->ExitBootServices(image_handle, memmap.map_key);//kernel_ExitBoot
 	if(EFI_ERROR(status))
 	{
+		Print(L"EFI1\n");
 		status = GetMemoryMap(&memmap);
 		if(EFI_ERROR(status))
 		{
-			Print(L"Failed to get memmap : %r\n", status);
+			Print(L"Failed to get memory map : %r\n", status);
 			Halt();
 		}
+		Print(L"EFI2\n");
 		status = gBS->ExitBootServices(image_handle, memmap.map_key);
+		Print(L"EFI3\n");
 		if(EFI_ERROR(status))
 		{
-			Print(L"Failed to exit boot services : %r\n", status);
+			Print(L"EFI4\n");
+			Print(L"Could not exit boot service : %r\n", status);
 			Halt();
 		}
+		Print(L"END\n");
 	}
+	Print(L"OK\n");
 	entry_addr = *(UINT64 *)(kernel_base_addr + 24);
 	entry_point = (EntryPointType *)entry_addr;
 	entry_point(gop->Mode->FrameBufferBase, gop->Mode->FrameBufferSize);
+	Print(L"End of file.\n");
 	Halt();
 	return EFI_SUCCESS;
 }
