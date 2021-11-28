@@ -1,57 +1,11 @@
 #include <cstdint>
 #include <cstddef>
-#include "header.hpp"
-#include <cstdint>
-#include <cstddef>
+#include <cstdio>
+#include "frame_buffer_config.hpp"
+#include "graphics.hpp"
+#include "font.hpp"
 
 using namespace std;
-
-struct PixelColor {
-  uint8_t r, g, b;
-};
-
-class PixelWriter
-{
-	public:
-		PixelWriter(const FrameBufferConfig &config) : config_{config}{}
-		virtual ~PixelWriter(){};
-		virtual void	Write(int x, int y, const PixelColor &c) = 0;
-	protected:
-		uint8_t	*PixelAt(int x, int y)
-		{
-			return (config_.frame_buffer + 4 * (config_.pixels_per_scan_line * y + x));
-		}
-	private:
-		const FrameBufferConfig	&config_;
-};
-
-class	RGBResv8BitPerColorPixelWriter : public PixelWriter
-{
-	public:
-		using PixelWriter::PixelWriter;
-
-	virtual void	Write(int x, int y, const PixelColor &c) override
-	{
-		auto p = PixelAt(x, y);
-		p[0] = c.r;
-		p[1] = c.g;
-		p[2] = c.b;
-	}
-};
-
-class	BGRResv8BitPerColorPixelWriter : public PixelWriter
-{
-	public:
-		using	PixelWriter::PixelWriter;
-
-	virtual void	Write(int x, int y, const PixelColor &c) override
-	{
-		auto p = PixelAt(x, y);
-		p[0] = c.b;
-		p[1] = c.g;
-		p[2] = c.r;
-	}
-};
 
 void* operator new(size_t size, void* buf)
 {
@@ -60,8 +14,8 @@ void* operator new(size_t size, void* buf)
 
 void	operator delete(void *obj) noexcept{}
 
-char		pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
-PixelWriter	*pixel_writer;
+char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
+PixelWriter* pixel_writer;
 
 extern "C" void	KernelMain(const FrameBufferConfig &frame_buffer_config)
 {
@@ -87,5 +41,9 @@ extern "C" void	KernelMain(const FrameBufferConfig &frame_buffer_config)
 		for(y = frame_buffer_config.vertical_resolution / 4; y < frame_buffer_config.vertical_resolution * 3 / 4; y++)
 			pixel_writer->Write(x, y, {0, 255, 0});
 	}
+	WriteString(*pixel_writer, 0, 66, "Hello, world!\n", {0, 0, 255});
+	char	buf[128];
+	sprintf(buf, "1 + 2 = %d", 1+ 2);
+	WriteString(*pixel_writer, 0, 82, buf, {0, 0, 0});
 	while(1) __asm__("hlt");
 }
